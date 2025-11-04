@@ -1,56 +1,157 @@
-// Get canvas and context
-const canvas = document.getElementById('pongCanvas');
-const ctx = canvas.getContext('2d');
+// Get canvas
+const canvas = document.getElementById('renderCanvas');
+
+// Create Babylon.js engine
+const engine = new BABYLON.Engine(canvas, true);
 
 // Game state
 let gameRunning = false;
-
-// Paddle properties
-const paddleWidth = 10;
-const paddleHeight = 100;
-const paddleSpeed = 6;
-
-// Player 1 (left)
-const player1 = {
-    x: 10,
-    y: canvas.height / 2 - paddleHeight / 2,
-    width: paddleWidth,
-    height: paddleHeight,
-    dy: 0,
-    score: 0
-};
-
-// Player 2 (right)
-const player2 = {
-    x: canvas.width - paddleWidth - 10,
-    y: canvas.height / 2 - paddleHeight / 2,
-    width: paddleWidth,
-    height: paddleHeight,
-    dy: 0,
-    score: 0
-};
-
-// Ball properties
-const ball = {
-    x: canvas.width / 2,
-    y: canvas.height / 2,
-    radius: 8,
-    dx: 4,
-    dy: 4,
-    speed: 4
-};
+let player1Score = 0;
+let player2Score = 0;
 
 // Keyboard state
 const keys = {};
+
+// Game objects
+let ball, player1Paddle, player2Paddle;
+let ballVelocity = new BABYLON.Vector3(0.15, 0, 0.1);
+const paddleSpeed = 0.2;
+
+// Create scene
+const createScene = () => {
+    const scene = new BABYLON.Scene(engine);
+    scene.clearColor = new BABYLON.Color3(0.1, 0.1, 0.15);
+
+    // Camera
+    const camera = new BABYLON.ArcRotateCamera(
+        'camera',
+        Math.PI / 2,
+        Math.PI / 3,
+        30,
+        BABYLON.Vector3.Zero(),
+        scene
+    );
+    camera.attachControl(canvas, true);
+    camera.lowerRadiusLimit = 20;
+    camera.upperRadiusLimit = 50;
+
+    // Lighting
+    const light1 = new BABYLON.HemisphericLight(
+        'light1',
+        new BABYLON.Vector3(0, 1, 0),
+        scene
+    );
+    light1.intensity = 0.7;
+
+    const light2 = new BABYLON.PointLight(
+        'light2',
+        new BABYLON.Vector3(0, 10, 0),
+        scene
+    );
+    light2.intensity = 0.5;
+
+    // Materials
+    const paddleMaterial = new BABYLON.StandardMaterial('paddleMat', scene);
+    paddleMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.8, 1);
+    paddleMaterial.emissiveColor = new BABYLON.Color3(0.1, 0.4, 0.5);
+    paddleMaterial.specularColor = new BABYLON.Color3(1, 1, 1);
+
+    const ballMaterial = new BABYLON.StandardMaterial('ballMat', scene);
+    ballMaterial.diffuseColor = new BABYLON.Color3(1, 1, 0.2);
+    ballMaterial.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.1);
+    ballMaterial.specularColor = new BABYLON.Color3(1, 1, 1);
+
+    const wallMaterial = new BABYLON.StandardMaterial('wallMat', scene);
+    wallMaterial.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.4);
+    wallMaterial.alpha = 0.3;
+
+    const groundMaterial = new BABYLON.StandardMaterial('groundMat', scene);
+    groundMaterial.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.2);
+    groundMaterial.specularColor = new BABYLON.Color3(0.2, 0.2, 0.3);
+
+    // Create playing field ground
+    const ground = BABYLON.MeshBuilder.CreateGround(
+        'ground',
+        { width: 20, height: 15 },
+        scene
+    );
+    ground.material = groundMaterial;
+
+    // Create walls (top and bottom)
+    const topWall = BABYLON.MeshBuilder.CreateBox(
+        'topWall',
+        { width: 20, height: 1, depth: 0.5 },
+        scene
+    );
+    topWall.position.z = 7.5;
+    topWall.position.y = 0.5;
+    topWall.material = wallMaterial;
+
+    const bottomWall = BABYLON.MeshBuilder.CreateBox(
+        'bottomWall',
+        { width: 20, height: 1, depth: 0.5 },
+        scene
+    );
+    bottomWall.position.z = -7.5;
+    bottomWall.position.y = 0.5;
+    bottomWall.material = wallMaterial;
+
+    // Create Player 1 paddle (left)
+    player1Paddle = BABYLON.MeshBuilder.CreateBox(
+        'player1',
+        { width: 0.5, height: 1, depth: 3 },
+        scene
+    );
+    player1Paddle.position.x = -9;
+    player1Paddle.position.y = 0.5;
+    player1Paddle.material = paddleMaterial;
+
+    // Create Player 2 paddle (right)
+    player2Paddle = BABYLON.MeshBuilder.CreateBox(
+        'player2',
+        { width: 0.5, height: 1, depth: 3 },
+        scene
+    );
+    player2Paddle.position.x = 9;
+    player2Paddle.position.y = 0.5;
+    player2Paddle.material = paddleMaterial;
+
+    // Create ball
+    ball = BABYLON.MeshBuilder.CreateSphere(
+        'ball',
+        { diameter: 0.8 },
+        scene
+    );
+    ball.position.y = 0.5;
+    ball.material = ballMaterial;
+
+    // Add glow effect to ball
+    const glowLayer = new BABYLON.GlowLayer('glow', scene);
+    glowLayer.intensity = 0.5;
+
+    // Center line markers
+    for (let i = -6; i <= 6; i += 2) {
+        const marker = BABYLON.MeshBuilder.CreateBox(
+            'marker' + i,
+            { width: 0.2, height: 0.1, depth: 1 },
+            scene
+        );
+        marker.position.z = i;
+        marker.position.y = 0.05;
+        marker.material = wallMaterial;
+    }
+
+    return scene;
+};
 
 // Event listeners
 document.addEventListener('keydown', (e) => {
     keys[e.key] = true;
 
-    // Start/pause game with space
     if (e.key === ' ') {
         e.preventDefault();
         gameRunning = !gameRunning;
+        updateMessage();
     }
 });
 
@@ -58,156 +159,117 @@ document.addEventListener('keyup', (e) => {
     keys[e.key] = false;
 });
 
-// Update paddle positions
-function updatePaddles() {
+// Update paddles
+const updatePaddles = () => {
     // Player 1 controls (W/S)
     if (keys['w'] || keys['W']) {
-        player1.dy = -paddleSpeed;
-    } else if (keys['s'] || keys['S']) {
-        player1.dy = paddleSpeed;
-    } else {
-        player1.dy = 0;
+        player1Paddle.position.z = Math.max(-6, player1Paddle.position.z - paddleSpeed);
+    }
+    if (keys['s'] || keys['S']) {
+        player1Paddle.position.z = Math.min(6, player1Paddle.position.z + paddleSpeed);
     }
 
     // Player 2 controls (Arrow keys)
     if (keys['ArrowUp']) {
-        player2.dy = -paddleSpeed;
-    } else if (keys['ArrowDown']) {
-        player2.dy = paddleSpeed;
-    } else {
-        player2.dy = 0;
+        player2Paddle.position.z = Math.max(-6, player2Paddle.position.z - paddleSpeed);
+    }
+    if (keys['ArrowDown']) {
+        player2Paddle.position.z = Math.min(6, player2Paddle.position.z + paddleSpeed);
+    }
+};
+
+// Update ball
+const updateBall = () => {
+    ball.position.addInPlace(ballVelocity);
+
+    // Collision with top and bottom walls
+    if (ball.position.z <= -7 || ball.position.z >= 7) {
+        ballVelocity.z = -ballVelocity.z;
+        ball.position.z = Math.max(-7, Math.min(7, ball.position.z));
     }
 
-    // Update positions
-    player1.y += player1.dy;
-    player2.y += player2.dy;
-
-    // Keep paddles within canvas bounds
-    player1.y = Math.max(0, Math.min(canvas.height - paddleHeight, player1.y));
-    player2.y = Math.max(0, Math.min(canvas.height - paddleHeight, player2.y));
-}
-
-// Update ball position
-function updateBall() {
-    ball.x += ball.dx;
-    ball.y += ball.dy;
-
-    // Ball collision with top and bottom walls
-    if (ball.y - ball.radius <= 0 || ball.y + ball.radius >= canvas.height) {
-        ball.dy = -ball.dy;
-    }
-
-    // Ball collision with paddles
+    // Collision with paddles
     // Player 1 paddle
-    if (ball.x - ball.radius <= player1.x + player1.width &&
-        ball.y >= player1.y &&
-        ball.y <= player1.y + player1.height &&
-        ball.dx < 0) {
-        ball.dx = -ball.dx;
-        // Add some variation based on where the ball hits the paddle
-        const hitPos = (ball.y - player1.y) / player1.height;
-        ball.dy = (hitPos - 0.5) * 8;
+    if (ball.position.x <= player1Paddle.position.x + 0.5 &&
+        ball.position.x >= player1Paddle.position.x - 0.5 &&
+        Math.abs(ball.position.z - player1Paddle.position.z) <= 1.9 &&
+        ballVelocity.x < 0) {
+        ballVelocity.x = -ballVelocity.x;
+        // Add variation based on hit position
+        const hitPos = (ball.position.z - player1Paddle.position.z) / 1.5;
+        ballVelocity.z = hitPos * 0.2;
+        // Increase speed slightly
+        ballVelocity.x *= 1.05;
     }
 
     // Player 2 paddle
-    if (ball.x + ball.radius >= player2.x &&
-        ball.y >= player2.y &&
-        ball.y <= player2.y + player2.height &&
-        ball.dx > 0) {
-        ball.dx = -ball.dx;
-        // Add some variation based on where the ball hits the paddle
-        const hitPos = (ball.y - player2.y) / player2.height;
-        ball.dy = (hitPos - 0.5) * 8;
+    if (ball.position.x >= player2Paddle.position.x - 0.5 &&
+        ball.position.x <= player2Paddle.position.x + 0.5 &&
+        Math.abs(ball.position.z - player2Paddle.position.z) <= 1.9 &&
+        ballVelocity.x > 0) {
+        ballVelocity.x = -ballVelocity.x;
+        // Add variation based on hit position
+        const hitPos = (ball.position.z - player2Paddle.position.z) / 1.5;
+        ballVelocity.z = hitPos * 0.2;
+        // Increase speed slightly
+        ballVelocity.x *= 1.05;
     }
 
-    // Ball goes out of bounds (scoring)
-    if (ball.x - ball.radius <= 0) {
-        // Player 2 scores
-        player2.score++;
+    // Scoring
+    if (ball.position.x < -10) {
+        player2Score++;
         updateScore();
         resetBall();
-    } else if (ball.x + ball.radius >= canvas.width) {
-        // Player 1 scores
-        player1.score++;
+    } else if (ball.position.x > 10) {
+        player1Score++;
         updateScore();
         resetBall();
     }
-}
+};
 
-// Reset ball to center
-function resetBall() {
-    ball.x = canvas.width / 2;
-    ball.y = canvas.height / 2;
-    ball.dx = (Math.random() > 0.5 ? 1 : -1) * ball.speed;
-    ball.dy = (Math.random() * 2 - 1) * ball.speed;
+// Reset ball
+const resetBall = () => {
+    ball.position.x = 0;
+    ball.position.z = 0;
+    ballVelocity.x = (Math.random() > 0.5 ? 1 : -1) * 0.15;
+    ballVelocity.z = (Math.random() - 0.5) * 0.2;
     gameRunning = false;
-}
+    updateMessage();
+};
 
 // Update score display
-function updateScore() {
-    document.getElementById('player1Score').textContent = player1.score;
-    document.getElementById('player2Score').textContent = player2.score;
-}
+const updateScore = () => {
+    document.getElementById('player1Score').textContent = player1Score;
+    document.getElementById('player2Score').textContent = player2Score;
+};
 
-// Draw paddle
-function drawPaddle(paddle) {
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
-}
-
-// Draw ball
-function drawBall() {
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
-    ctx.closePath();
-}
-
-// Draw center line
-function drawCenterLine() {
-    ctx.strokeStyle = '#fff';
-    ctx.setLineDash([10, 10]);
-    ctx.beginPath();
-    ctx.moveTo(canvas.width / 2, 0);
-    ctx.lineTo(canvas.width / 2, canvas.height);
-    ctx.stroke();
-    ctx.setLineDash([]);
-}
-
-// Draw game state message
-function drawMessage() {
+// Update message
+const updateMessage = () => {
+    const messageEl = document.getElementById('message');
     if (!gameRunning) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.font = '30px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('Press SPACE to start', canvas.width / 2, canvas.height / 2 + 50);
+        messageEl.style.display = 'block';
+    } else {
+        messageEl.style.display = 'none';
     }
-}
+};
 
-// Clear canvas
-function clearCanvas() {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
+// Create scene
+const scene = createScene();
 
-// Main game loop
-function gameLoop() {
-    clearCanvas();
-    drawCenterLine();
-    drawPaddle(player1);
-    drawPaddle(player2);
-    drawBall();
-    drawMessage();
-
+// Game loop
+engine.runRenderLoop(() => {
     if (gameRunning) {
         updatePaddles();
         updateBall();
     }
+    scene.render();
+});
 
-    requestAnimationFrame(gameLoop);
-}
+// Handle window resize
+window.addEventListener('resize', () => {
+    engine.resize();
+});
 
-// Initialize game
+// Initialize
 updateScore();
-gameLoop();
+updateMessage();
