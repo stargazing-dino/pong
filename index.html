@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Pong Game - Babylon.js</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+</head>
+<body>
+    <div class="game-container">
+        <h1>3D Pong</h1>
+        <div class="score-board">
+            <div class="player-score">
+                <h2>Player 1</h2>
+                <span id="player1Score">0</span>
+            </div>
+            <div class="player-score">
+                <h2>Player 2</h2>
+                <span id="player2Score">0</span>
+            </div>
+        </div>
+        <canvas id="renderCanvas"></canvas>
+        <div class="controls">
+            <p><strong>Controls:</strong></p>
+            <p>Player 1: W (up) / S (down)</p>
+            <p>Player 2: Arrow Up / Arrow Down</p>
+            <p>Press SPACE to start/pause</p>
+            <p>Drag to rotate camera view</p>
+        </div>
+        <div id="message" class="message">Press SPACE to start</div>
+    </div>
+    <script src="pong.js"></script>
+</body>
+</html>
